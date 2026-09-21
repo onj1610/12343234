@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WORLD WAR RTS 3D</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#20251f;color:#eee;font-family:Arial,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
+canvas{display:block}
+#hud{position:fixed;inset:0;pointer-events:none}
+#topbar{position:absolute;left:14px;right:14px;top:12px;height:54px;display:flex;align-items:center;gap:10px}
+.panel{background:rgba(18,22,18,.86);border:1px solid rgba(255,255,255,.15);box-shadow:0 6px 24px rgba(0,0,0,.28);backdrop-filter:blur(4px);border-radius:8px}
+.stat{padding:8px 12px;min-width:120px;font-size:13px}
+.stat b{display:block;font-size:18px;margin-top:2px}
+#title{font-weight:700;letter-spacing:.5px;padding:9px 13px;font-size:14px}
+#controls{position:absolute;left:14px;top:78px;bottom:auto;width:355px;padding:12px;font-size:12px;line-height:1.65;max-width:calc(100vw - 42px);box-sizing:border-box;background:rgba(18,22,18,.54);border-color:rgba(255,255,255,.22);box-shadow:0 6px 22px rgba(0,0,0,.22);backdrop-filter:blur(7px)}
+#controls strong{color:#fff}.legendDot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;box-shadow:0 0 7px currentColor}.legendDot.ally{color:#d8efb1;background:#b5d98c}.legendDot.foe{color:#d98f86;background:#a75f57}.buildLabel{width:100%;font-size:11px;opacity:.7;text-align:center;margin-bottom:-2px;text-shadow:0 1px 3px #000}
+#selectionInfo{position:absolute;right:14px;bottom:14px;width:250px;padding:12px;display:none}
+#build{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:8px;pointer-events:auto;width:min(900px,calc(100vw - 28px));max-width:calc(100vw - 28px)}
+.buildBtn{border:1px solid #8d987d;background:#30382d;color:#f1f2e9;border-radius:7px;padding:10px 13px;cursor:pointer;font-weight:700;min-width:108px}
+.buildBtn:hover{background:#4a543f}.buildBtn small{display:block;font-weight:400;opacity:.75;margin-top:2px}
+#message{position:absolute;left:50%;top:84px;transform:translateX(-50%);padding:9px 16px;min-width:260px;text-align:center;display:none}
+#minimap{position:absolute;right:14px;top:78px;width:190px;height:135px;overflow:hidden;border-radius:7px}
+#minimap canvas{width:100%;height:100%}
+#start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,rgba(68,78,62,.5),rgba(7,9,7,.96));z-index:20}
+#start .card{width:min(720px,92vw);padding:34px;border-radius:14px;background:rgba(16,19,16,.95);border:1px solid rgba(255,255,255,.14);text-align:center;box-shadow:0 28px 80px rgba(0,0,0,.5)}
+#start h1{font-size:42px;margin:0 0 10px;letter-spacing:1px}.sub{opacity:.7;margin-bottom:22px}
+#start button{font-size:18px;font-weight:700;padding:12px 28px;border-radius:8px;border:1px solid #aeb69e;background:#49533e;color:white;cursor:pointer}.modeBtn{font-size:14px!important;padding:9px 14px!important;min-width:150px;background:#30382d!important;border-color:#707966!important}.modeBtn.active{background:#59674a!important;border-color:#c5d0b3!important;box-shadow:0 0 0 2px rgba(218,231,197,.15) inset}.hint{opacity:.7;font-size:12px;margin-top:16px}
+#pause{position:fixed;inset:0;display:none;z-index:30;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}
+#pause .card{padding:28px 42px;text-align:center;border-radius:12px;background:rgba(15,18,15,.95)}
+#pause h2{margin:0 0 8px}.hidden{display:none!important}
+#commandBar{position:absolute;right:14px;bottom:118px;display:flex;gap:8px;pointer-events:auto;flex-wrap:wrap;justify-content:flex-end;max-width:420px}
+.commandBtn{border:1px solid #a8ae96;background:#394132;color:#f3f4eb;border-radius:7px;padding:9px 12px;cursor:pointer;font-weight:700;min-width:118px;box-shadow:0 4px 12px rgba(0,0,0,.22)}
+.commandBtn:hover{background:#525d48}.commandBtn small{display:block;font-weight:400;opacity:.72;margin-top:2px}
+#battleState{position:absolute;left:50%;top:15px;transform:translateX(-50%);min-width:220px;text-align:center;padding:7px 12px;display:none;border:1px solid rgba(255,120,100,.26)}
+#warning{position:fixed;inset:0;pointer-events:none;z-index:12;opacity:0;background:radial-gradient(circle,transparent 40%,rgba(150,30,25,.34));transition:opacity .1s}
+#morale{width:160px;height:8px;border-radius:99px;overflow:hidden;background:#24281f;margin-top:5px}.barFill{height:100%;width:50%;transition:width .15s}
+</style>
+</head>
+<body>
+<div id="start"><div class="card"><h1>WORLD WAR RTS 3D</h1><div style="margin:18px auto 12px;opacity:.8;font-weight:700">ゲームモード</div><div id="modeSelect" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:18px"><button class="modeBtn active" data-mode="1v1">1 vs 1</button><button class="modeBtn" data-mode="1v1v1">1 vs 1 vs 1</button><button class="modeBtn" data-mode="2v2">2 vs 2 チーム戦</button></div><button id="startBtn">作戦開始</button><div id="modeHint" class="hint">1 vs 1：自軍HQ vs 敵HQ</div><div class="hint">左ドラッグ: 範囲選択　右クリック: 移動 / 攻撃　ホイール: ズーム　※音声ONで開始</div></div></div>
+<div id="pause"><div class="card"><h2>一時停止</h2><div>ESCで再開</div></div></div>
+<div id="hud">
+  <div id="topbar">
+    <div id="title" class="panel">WORLD WAR RTS 3D</div>
+    <div class="stat panel">戦力<b id="unitsStat">0 / 800</b></div>
+    <div class="stat panel">資材<b id="resStat">150</b></div>
+    <div class="stat panel">撃破<b id="killStat">0</b></div>
+    <div class="stat panel">HQ耐久<b id="hpStat">500</b></div>
+    <div class="stat panel">司令点<b id="cmdStat">35 / 150</b><small style="opacity:.7">敵撃破で増加</small><div id="morale"><div id="moraleFill" class="barFill"></div></div></div>
+  </div>
+  <div id="message" class="panel"></div>
+  <div id="battleState" class="panel"></div>
+  <div id="minimap" class="panel"><canvas id="mini"></canvas></div>
+  <div id="selectionInfo" class="panel"></div>
+  <div id="warning"></div>
+  <div id="commandBar">
+    <button class="commandBtn" id="artilleryBtn">砲撃支援 <small>司令点 55 / Q</small></button>
+    <button class="commandBtn" id="rallyBtn">総攻撃 <small>司令点 40 / E</small></button>
+    <button class="commandBtn" id="reinforceBtn">緊急増援 <small>資材 120 / R</small></button>
+  </div>
+  <div id="build"><div class="buildLabel">部隊を生産</div>
+    <button class="buildBtn" data-unit="rifle">歩兵隊 <small>資材 40 / 8人</small></button>
+    <button class="buildBtn" data-unit="tank">戦車 <small>資材 90 / 1両</small></button>
+    <button class="buildBtn" data-unit="mg">機関銃班 <small>資材 65 / 4人</small></button>
+    <button class="buildBtn" data-unit="rocket">ロケラン班 <small>資材 110 / 2人</small></button>
+    <button class="buildBtn" data-unit="mortar">迫撃砲班 <small>資材 100 / 3人</small></button>
+    <button class="buildBtn" data-unit="armored">装甲車 <small>資材 120 / 1両</small></button>
+    <button class="buildBtn" data-unit="at">対戦車砲班 <small>資材 95 / 2人</small></button>
+  </div>
+  <div id="controls" class="panel"><strong>操作</strong><br>左ドラッグ：ユニットを範囲選択<br>左クリック：ユニット/建物を選択<br>右クリック：移動 / 敵を攻撃<br>ホイール：カメラズーム<br>WASD / 画面端：カメラ移動<br>ESC：一時停止　Q：砲撃支援→場所をクリック　E：総攻撃　R：緊急増援<br><br><strong>操作できるもの</strong><br><span class="legendDot ally"></span>緑色＝自軍（操作可能）　<span class="legendDot ally" style="background:#62b7d5;color:#62b7d5"></span>青系＝味方AI　<span class="legendDot foe"></span>赤系＝敵　紫系＝第三勢力<br>クリックすると選択リングが表示されます。<br><br><strong>目的</strong><br>敵HQを破壊する。資材を使って部隊を生産し、敵の攻撃を防ぎながら前進しよう。</div>
+</div>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+const T = THREE;
+const scene = new T.Scene();
+scene.background = new T.Color(0x6f775f);
+scene.fog = new T.Fog(0x6f775f, 140, 300);
+const camera = new T.OrthographicCamera(-35,35,22,-22,.1,500);
+camera.position.set(0,65,46); camera.lookAt(0,0,0);
+const renderer = new T.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=false; document.body.appendChild(renderer.domElement);
+scene.add(new T.HemisphereLight(0xd9e2d2,0x384233,2.0));
+const sun = new T.DirectionalLight(0xfff3dc,2.2); sun.position.set(-50,80,20); scene.add(sun);
+
+const MAP_W=150, MAP_H=100;
+const ground=new T.Mesh(new T.PlaneGeometry(MAP_W,MAP_H),new T.MeshLambertMaterial({color:0x70775c}));
+ground.rotation.x=-Math.PI/2; scene.add(ground);
+const gridMat=new T.LineBasicMaterial({color:0x858c6f,transparent:true,opacity:.28});
+for(let x=-75;x<=75;x+=10){const g=new T.BufferGeometry().setFromPoints([new T.Vector3(x,.03,-50),new T.Vector3(x,.03,50)]);scene.add(new T.Line(g,gridMat));}
+for(let z=-50;z<=50;z+=10){const g=new T.BufferGeometry().setFromPoints([new T.Vector3(-75,.03,z),new T.Vector3(75,.03,z)]);scene.add(new T.Line(g,gridMat));}
+
+const units=[], alliedUnits=[], enemies=[], projectiles=[], effects=[], resources=[];
+const selected=new Set();
+let running=false, paused=false, gameOver=false, resourcesAmt=150, kills=0, enemyTimer=0, allyTimer=1.5, enemy2Timer=2.4, last=performance.now();
+let gameMode='1v1'; let playerTeam='player';
+let commanderPoints=35, morale=55, killStreak=0, streakTimer=0, rallyTimer=0, artilleryCooldown=0, battleStateTimer=0, warningPulse=0, cameraShake=0, artilleryPending=false;
+const MAX_FORCES=800, MAX_RESOURCES=500, RESOURCE_REGEN=9.0, MAX_COMMANDER_POINTS=150;
+let audioCtx=null, audioMaster=null, ambientGain=null, ambientSources=[], ambientTimer=7+Math.random()*5, sfxStamp=0;
+let camTarget=new T.Vector3(-50,0,0), camZoom=1;
+const mouse=new T.Vector2(); let drag=false, dragStart=null, dragBox;
+const $=id=>document.getElementById(id);
+
+
+function ensureAudio(){
+ if(audioCtx) return;
+ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+ audioCtx=new AC(); audioMaster=audioCtx.createGain(); audioMaster.gain.value=.95; audioMaster.connect(audioCtx.destination);
+}
+async function startAudio(){ensureAudio(); if(!audioCtx)return; if(audioCtx.state==='suspended') await audioCtx.resume(); if(ambientSources.length) return;
+ const osc=audioCtx.createOscillator(), oscGain=audioCtx.createGain(); osc.type='sine'; osc.frequency.value=78; oscGain.gain.value=.012; osc.connect(oscGain).connect(audioMaster); osc.start();
+ const buffer=audioCtx.createBuffer(1,audioCtx.sampleRate*2,audioCtx.sampleRate), data=buffer.getChannelData(0);
+ for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*.32;
+ const noise=audioCtx.createBufferSource(), filter=audioCtx.createBiquadFilter(), ng=audioCtx.createGain(); noise.buffer=buffer; noise.loop=true; filter.type='lowpass'; filter.frequency.value=520; ng.gain.value=.018; noise.connect(filter).connect(ng).connect(audioMaster); noise.start();
+ ambientSources=[osc,noise]; ambientGain=oscGain;
+}
+function env(g,attack=.005,decay=.12,peak=.08){g.gain.cancelScheduledValues(audioCtx.currentTime);g.gain.setValueAtTime(.0001,audioCtx.currentTime);g.gain.linearRampToValueAtTime(peak,audioCtx.currentTime+attack);g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+attack+decay)}
+function tone(freq,duration=.12,type='sine',peak=.06,detune=0){if(!audioCtx||!audioMaster)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=freq;o.detune.value=detune;o.connect(g).connect(audioMaster);env(g,.004,duration*.8,peak);o.start();o.stop(audioCtx.currentTime+duration+.03)}
+function noiseBurst(duration=.08,peak=.08,filterFreq=1800){if(!audioCtx||!audioMaster)return;const b=audioCtx.createBuffer(1,Math.max(1,Math.floor(audioCtx.sampleRate*duration)),audioCtx.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);const src=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();src.buffer=b;f.type='bandpass';f.frequency.value=filterFreq;f.Q.value=.7;src.connect(f).connect(g).connect(audioMaster);env(g,.002,duration*.85,peak);src.start();src.stop(audioCtx.currentTime+duration+.02)}
+function playShot(type,side){
+ if(!audioCtx)return;const now=audioCtx.currentTime;if(now-sfxStamp<.014)return;sfxStamp=now;
+ const heavy=['tank','armored','rocket','mortar','at'].includes(type);
+ const dur=type==='tank'?.24:(type==='rocket'?.16:(type==='mortar'?.18:(type==='armored'?.13:.07)));
+ const peak=type==='tank'?.40:(heavy?.24:.17);
+ const freq=type==='tank'?420:(type==='rocket'?900:(type==='mortar'?520:(type==='at'?760:(type==='armored'?620:2600))));
+ noiseBurst(dur,peak,freq);tone(type==='tank'?82:(heavy?115:145),heavy?.18:.09,heavy?'square':'square',heavy?.10:.038);
+}
+function playImpact(type='rifle'){
+ if(!audioCtx)return;const heavy=['tank','armored','rocket','mortar','at'].includes(type);
+ noiseBurst(heavy?.16:.065,heavy?.22:.10,heavy?680:1700);
+ if(heavy)tone(type==='rocket'?46:(type==='mortar'?58:55),.24,'sawtooth',.085);
+}
+function playExplosion(big=false){cameraShake=Math.max(cameraShake,big?.75:.32);if(!audioCtx)return;noiseBurst(big?.52:.28,big?.38:.21,big?240:420);noiseBurst(big?.22:.12,.10,big?95:300);tone(big?48:70,big?.48:.26,'sine',big?.16:.075);setTimeout(()=>{if(audioCtx){noiseBurst(big?.24:.10,big?.16:.08,big?130:520);tone(big?38:58,.32,'triangle',big?.04:.035)}},big?85:55)}
+function playSelect(){tone(640,.07,'sine',.04);tone(900,.09,'sine',.025,4)}
+function playMove(){tone(420,.06,'triangle',.025);tone(520,.08,'triangle',.018)}
+function playBuild(){tone(210,.08,'square',.04);setTimeout(()=>tone(310,.11,'square',.05),70);setTimeout(()=>tone(470,.14,'sine',.04),150)}
+function playAlert(){tone(120,.12,'square',.045);setTimeout(()=>tone(92,.16,'square',.035),120)}
+function distantBoom(){if(!audioCtx||!running||paused)return;noiseBurst(.65,.095,160);tone(42,.65,'sine',.045);}
+function audioAmbientUpdate(dt){if(!audioCtx||!running||paused)return;ambientTimer-=dt;if(ambientTimer<=0){distantBoom();ambientTimer=9+Math.random()*15}}
+function playCommand(kind){if(!audioCtx)return;if(kind==='artillery'){tone(180,.10,'square',.06);setTimeout(()=>noiseBurst(.28,.26,320),110);setTimeout(()=>tone(62,.30,'sine',.10),145);}else if(kind==='rally'){tone(260,.09,'triangle',.05);setTimeout(()=>tone(520,.16,'triangle',.06),90);setTimeout(()=>tone(760,.20,'sine',.045),180);}else{tone(320,.08,'square',.045);setTimeout(()=>tone(500,.10,'square',.05),75);setTimeout(()=>tone(700,.14,'sine',.04),160);}}
+function playWarning(){if(!audioCtx)return;tone(115,.11,'square',.05);setTimeout(()=>tone(88,.14,'square',.045),140);}
+function playVictoryPulse(){if(!audioCtx)return;tone(430,.12,'triangle',.04);setTimeout(()=>tone(650,.16,'triangle',.05),110);setTimeout(()=>tone(860,.20,'sine',.04),230)}
+
+function mat(c){return new T.MeshLambertMaterial({color:c});}
+function box(w,h,d,c){const m=new T.Mesh(new T.BoxGeometry(w,h,d),mat(c));m.position.y=h/2;return m;}
+function cylinder(r,h,c,rad=8){const m=new T.Mesh(new T.CylinderGeometry(r,r,h,rad),mat(c));m.position.y=h/2;return m;}
+function addShadow(group,r=1){const s=new T.Mesh(new T.CircleGeometry(r,12),new T.MeshBasicMaterial({color:0x111111,transparent:true,opacity:.18,depthWrite:false}));s.rotation.x=-Math.PI/2;s.position.y=.04;group.add(s);}
+
+function makeSoldier(side='player',type='rifle'){
+ const g=new T.Group();
+ const bodyColor=side==='player'?0x66705a:0x615f54;
+ const skin=0xb48a6c;
+ g.add(box(.72,1.0,.5,bodyColor));
+ const head=new T.Mesh(new T.SphereGeometry(.31,10,7),mat(skin));head.position.y=1.35;g.add(head);
+ const helmet=cylinder(.34,.12,side==='player'?0x3f4937:0x4a4840,12);helmet.position.y=1.56;g.add(helmet);
+ const gun=box(.10,.10,.8,0x292b27);gun.position.set(.0,.98,.54);gun.rotation.x=.08;g.add(gun);
+ const legs=box(.14,.55,.18,0x464b42);legs.position.set(-.19,.55,.0);g.add(legs);const leg2=legs.clone();leg2.position.x=.19;g.add(leg2);
+ addShadow(g,.55);
+ return {group:g,type,side, hp:type==='tank'?150:type==='mg'?90:70,maxHp:type==='tank'?150:type==='mg'?90:70,speed:type==='tank'?5:type==='mg'?4.2:4.7,range:type==='tank'?9:type==='mg'?10:8,damage:type==='tank'?25:type==='mg'?12:8,cool:type==='tank'?1.3:type==='mg'?.75:1.05,vision:type==='tank'?15:type==='mg'?16:11,cd:0,target:null,order:null,selected:false,dead:false,aiRole:type==='mg'?'support':'assault',aiThink:Math.random()*.5,flankSide:Math.random()<.5?-1:1,attackOrder:false};
+}
+
+function makeSpecial(type,side='player'){
+ const g=new T.Group();
+ const base=side==='player'?0x5f6753:0x59554b;
+ let hp=70,maxHp=70,speed=4,range=12,damage=12,cool=1.2,role='assault',vision=14;
+ if(type==='rocket'){
+   const body=box(.64,.9,.46,base);g.add(body);const head=new T.Mesh(new T.SphereGeometry(.29,10,7),mat(0xb48a6c));head.position.y=1.25;g.add(head);
+   const tube=box(.16,.16,1.25,0x30322e);tube.position.set(.28,1.05,.55);tube.rotation.x=.05;tube.rotation.y=-.08;g.add(tube);
+   hp=maxHp=58;speed=3.5;range=21;damage=58;cool=2.7;role='assault';vision=23;
+ }else if(type==='mortar'){
+   const body=box(.68,.9,.5,base);g.add(body);const head=new T.Mesh(new T.SphereGeometry(.29,10,7),mat(0xb48a6c));head.position.y=1.25;g.add(head);
+   const tube=box(.16,.16,.8,0x33352f);tube.position.set(0,1.0,.34);tube.rotation.x=-.55;g.add(tube);
+   const plate=box(.75,.12,.65,0x3f433d);plate.position.y=.12;g.add(plate);
+   hp=maxHp=62;speed=2.8;range=19;damage=42;cool=2.1;role='support';vision=21;
+ }else if(type==='armored'){
+   const hull=box(2.0,.75,2.4,base);hull.position.y=.38;g.add(hull);
+   const cabin=box(1.35,.8,1.25,base);cabin.position.set(0,1.05,-.12);g.add(cabin);
+   const gun=box(.16,.16,1.35,0x292b27);gun.position.set(0,1.35,.92);g.add(gun);
+   hp=maxHp=190;speed=5.7;range=12.5;damage=34;cool=1.45;role='armor';vision=16;
+ }else if(type==='at'){
+   const body=box(.68,.86,.48,base);g.add(body);const head=new T.Mesh(new T.SphereGeometry(.29,10,7),mat(0xb48a6c));head.position.y=1.22;g.add(head);
+   const gun=box(.13,.13,1.35,0x2a2c29);gun.position.set(0,.98,.62);gun.rotation.x=.08;g.add(gun);
+   const bipod=box(.08,.45,.08,0x343632);bipod.position.set(-.18,.52,.58);bipod.rotation.x=.3;g.add(bipod);const bipod2=bipod.clone();bipod2.position.x=.18;g.add(bipod2);
+   hp=maxHp=82;speed=3.1;range=18;damage=54;cool=2.25;role='antiarmor';vision=22;
+ }
+ addShadow(g,type==='armored'?1.35:.65);
+ return {group:g,type,side,hp,maxHp,speed,range,damage,cool,vision,cd:0,target:null,order:null,selected:false,dead:false,aiRole:role,aiThink:Math.random()*.5,flankSide:Math.random()<.5?-1:1,attackOrder:false};
+}
+function makeTank(side='player'){
+ const g=new T.Group(); const base=side==='player'?0x626a55:0x5c584d;
+ const hull=box(2.0,.55,2.6,base); hull.position.y=.38; g.add(hull);
+ const top=cylinder(.7,.35,base,10);top.position.y=.9;top.scale.z=1.1;g.add(top);
+ const barrel=box(.14,.14,1.7,0x2a2b28);barrel.position.set(0,.95,1.15);g.add(barrel);
+ addShadow(g,1.25);return {group:g,type:'tank',side,hp:150,maxHp:150,speed:5,range:11,damage:28,cool:1.25,vision:15,cd:0,target:null,order:null,selected:false,dead:false,aiRole:'armor',aiThink:Math.random()*.5,flankSide:Math.random()<.5?-1:1,attackOrder:false};
+}
+function makeHQ(side){
+ const g=new T.Group(); const col=side==='player'?0x56604b:(side==='ally'?0x4d6061:(side==='enemy2'?0x574c63:0x544f45));
+ const base=box(8,2.2,7,col);base.position.y=1.1;g.add(base);
+ const tower=box(2,3,2,side==='player'?0x3d4535:(side==='ally'?0x3d5051:(side==='enemy2'?0x43394b:0x413f39)));tower.position.set(0,2.6,0);g.add(tower);
+ for(let x of [-2.4,2.4]){const block=box(1.3,1.7,2,col);block.position.set(x,1.5,0);g.add(block)}
+ // 所属が遠くからでも分かる旗・ポール
+ const flagCol=side==='player'?0x7ed36b:(side==='ally'?0x63c2df:(side==='enemy2'?0xbd67ee:0xe05a5a));
+ const pole=cylinder(.09,5.4,0x282a27,8);pole.position.set(0,5.1,0);g.add(pole);
+ const flag=box(2.8,1.35,.12,flagCol);flag.position.set(1.25,6.15,0);g.add(flag);
+ const flagInner=box(1.15,.16,.13,0xf2e6c9);flagInner.position.set(1.25,6.15,.07);g.add(flagInner);
+ const beacon=new T.Mesh(new T.CylinderGeometry(1.35,1.35,.08,24),new T.MeshBasicMaterial({color:flagCol,transparent:true,opacity:.28,depthWrite:false,side:T.DoubleSide}));beacon.position.set(0,.08,0);g.add(beacon);
+ const rubble=[]; for(let i=0;i<6;i++){const r=box(.6+.35*Math.random(),.25+.35*Math.random(),.7+.35*Math.random(),0x393a35);r.visible=false;r.position.set((Math.random()-.5)*6.5,.2,(Math.random()-.5)*5.5);g.add(r);rubble.push(r)}
+ addShadow(g,4.5);return {group:g,hp:500,maxHp:500,side,team:null,type:'hq',dead:false,resources:220,prodTimer:0,rubble,baseColor:col,_flag:flag,_pole:pole,_beacon:beacon};
+}
+function destroyHQVisual(hq){
+ if(hq.dead && hq._wrecked)return; hq._wrecked=true; hq.dead=true; hq.hp=0;
+ for(const child of hq.group.children){if(child.material&&child.material.color)child.material.color.offsetHSL(0,-.02,-.30); if(child.geometry&&child!==hq.group.children[0])child.rotation.z+=(Math.random()-.5)*.22;}
+ const tower=hq.group.children[1]; if(tower){tower.rotation.z=.35;tower.position.y=2.0;}
+ for(const r of hq.rubble||[]){r.visible=true;r.position.y=.2+Math.random()*.35;r.rotation.set(Math.random()*.4,Math.random()*6.28,Math.random()*.6);}
+ for(let i=0;i<5;i++){const p=hq.group.position.clone().add(new T.Vector3((Math.random()-.5)*5,1+Math.random()*2,(Math.random()-.5)*4));makeBurst(p);}
+ const smoke=new T.Mesh(new T.CylinderGeometry(1.0,1.6,3.2,8),new T.MeshLambertMaterial({color:0x282a26,transparent:true,opacity:.38}));smoke.position.set(0,3.6,0);hq.group.add(smoke);hq._wreckSmoke=smoke;
+ playExplosion(true); battlePulse('HQ撃破：この拠点は生産停止',2.2);
+}
+function makeResource(x,z){
+ const g=new T.Group();
+ for(let i=0;i<3;i++){const c=box(.7,.7,.7,0x8e6949);c.position.set((i-1)*.78,.35,(i%2)*.3-.15);g.add(c)}
+ addShadow(g,1.1);g.position.set(x,0,z);scene.add(g);resources.push({group:g,amount:800,max:800});
+}
+function placeTown(){
+ const houseMat=0x4b4f47;
+ for(let i=0;i<22;i++){
+   const x=Math.round((Math.random()*120-60)/5)*5, z=Math.round((Math.random()*78-39)/5)*5;
+   if(Math.abs(x)<14 && Math.abs(z)<12) continue;
+   const h=2+Math.random()*5, w=4+Math.random()*4,d=4+Math.random()*4;
+   const m=box(w,h,d,houseMat);m.position.set(x,h/2,z);scene.add(m);
+   if(Math.random()<.45){const roof=box(w+.5,.25,d+.5,0x353a34);roof.position.set(x,h+.12,z);scene.add(roof)}
+ }
+ // roads
+ for(const x of [-30,0,30]){const r=new T.Mesh(new T.PlaneGeometry(12,100),new T.MeshLambertMaterial({color:0x51544e}));r.rotation.x=-Math.PI/2;r.position.set(x,.02,0);scene.add(r)}
+ for(const z of [-25,0,25]){const r=new T.Mesh(new T.PlaneGeometry(150,10),new T.MeshLambertMaterial({color:0x51544e}));r.rotation.x=-Math.PI/2;r.position.set(0,.021,z);scene.add(r)}
+ for(let i=0;i<18;i++){
+   const x=(Math.random()<.5?-1:1)*(15+Math.random()*48), z=Math.random()*80-40;
+   const trunk=cylinder(.11,2.5,0x504638,6);trunk.position.set(x,0,z);scene.add(trunk);
+   const crown=new T.Mesh(new T.SphereGeometry(1.3,7,6),mat(0x44513a));crown.position.set(x,3,z);scene.add(crown);
+ }
+}
+function clearWorld(){for(const a of [...units,...alliedUnits,...enemies,...projectiles,...effects]){if(a.group)scene.remove(a.group);else if(a.mesh)scene.remove(a.mesh)}units.length=0;alliedUnits.length=0;enemies.length=0;projectiles.length=0;effects.length=0;selected.clear()}
+placeTown();
+const playerHQ=makeHQ('player');
+const allyHQ=makeHQ('ally');
+const enemyHQ=makeHQ('enemy');
+const enemy2HQ=makeHQ('enemy2');
+const hqList=[playerHQ,allyHQ,enemyHQ,enemy2HQ];
+// HQグループをThree.jsシーンに追加。表示/非表示はセットアップ側で切り替える。
+for(const h of hqList){scene.add(h.group);h.group.visible=false;}
+const ARTILLERY_COST=55;
+const ARTILLERY_DAMAGE=95;
+const ARTILLERY_RADIUS=5.2;
+const ARTILLERY_SHELLS=10;
+const ARTILLERY_COOLDOWN=14;
+for(const p of [[-28,-22],[-8,28],[20,-24],[28,18],[0,0]])makeResource(p[0],p[1]);
+function teamForSide(side){
+  if(gameMode==='2v2') return (side==='player'||side==='ally')?'blue':'red';
+  return side;
+}
+function isHostile(a,b){return !!a&&!!b&&a.team!==b.team;}
+function playerFaction(){return {side:'player',team:teamForSide('player')};}
+function activeHQs(){return hqList.filter(h=>h.group.visible);} 
+function enemyHQs(){return activeHQs().filter(h=>h.team!==playerTeam&&!h.dead);}
+function allCombatants(){return [...units,...alliedUnits,...enemies];}
+function removeCombatant(t){
+  for(const arr of [units,alliedUnits,enemies]){const i=arr.indexOf(t);if(i>=0)arr.splice(i,1);}
+  selected.delete(t);
+  if(t._teamMarker) t._teamMarker=null;
+  if(t.group){scene.remove(t.group);}
+}
+
+function addUnit(u,x,z,arr){u.group.position.set(x,.0,z);u.team=teamForSide(u.side);const markerColor=u.side==='player'?0x86d66f:(u.side==='ally'?0x55b7d4:(u.side==='enemy2'?0xb56be8:0xe35d5d));const marker=new T.Mesh(new T.RingGeometry(u.type==='armored'||u.type==='tank'?1.25:.62,u.type==='armored'||u.type==='tank'?1.48:.82,16),new T.MeshBasicMaterial({color:markerColor,transparent:true,opacity:u.side==='player'?.58:.76,side:T.DoubleSide,depthWrite:false}));marker.rotation.x=-Math.PI/2;marker.position.y=.045;u.group.add(marker);u._teamMarker=marker;if(u.side==='player')u._allyMarker=marker;scene.add(u.group);arr.push(u);return u}
+function spawnArmyForFaction(side,hq,arr,countScale=1){
+ const sx=hq.group.position.x, sz=hq.group.position.z;
+ const pts=[[-8,-7],[-4,-7],[0,-7],[4,-7],[8,-7],[-8,-2],[-4,-2],[0,-2],[4,-2],[8,-2],[-6,3],[-2,3],[2,3],[6,3]];
+ pts.forEach((p,i)=>{if(i<Math.round(pts.length*countScale))addUnit(makeSoldier(side,'rifle'),sx+p[0],sz+p[1],arr)});
+ addUnit(makeTank(side),sx+10,sz+7,arr); addUnit(makeTank(side),sx+13,sz-7,arr);
+ addUnit(makeSoldier(side,'mg'),sx+7,sz+10,arr);
+ addUnit(makeSpecial('rocket',side),sx+12,sz+11,arr);
+ addUnit(makeSpecial('mortar',side),sx+10,sz+14,arr);
+ addUnit(makeSpecial('armored',side),sx+15,sz+2,arr);
+ addUnit(makeSpecial('at',side),sx+13,sz+16,arr);
+}
+function setupMode(){
+ clearWorld();
+ for(const h of hqList){h.group.visible=false;h.dead=false;h._wrecked=false;h.hp=h.maxHp;h.prodTimer=0;h.resources=220; for(const r of h.rubble||[])r.visible=false;}
+ playerHQ.team=teamForSide('player'); allyHQ.team=teamForSide('ally'); enemyHQ.team=teamForSide('enemy'); enemy2HQ.team=teamForSide('enemy2');
+ if(gameMode==='1v1'){
+   playerHQ.group.visible=true;enemyHQ.group.visible=true;
+   playerHQ.group.position.set(-44,0,0);enemyHQ.group.position.set(44,0,0);
+   camTarget.copy(playerHQ.group.position);
+   spawnArmyForFaction('player',playerHQ,units,1);
+   spawnArmyForFaction('enemy',enemyHQ,enemies,.58);
+ }else if(gameMode==='1v1v1'){
+   playerHQ.group.visible=true;enemyHQ.group.visible=true;enemy2HQ.group.visible=true;
+   const R=32, h=27.712813;
+   playerHQ.group.position.set(-32,0,0);enemyHQ.group.position.set(16,0,h);enemy2HQ.group.position.set(16,0,-h);
+   camTarget.copy(playerHQ.group.position);
+   spawnArmyForFaction('player',playerHQ,units,.9);
+   spawnArmyForFaction('enemy',enemyHQ,enemies,.5);
+   spawnArmyForFaction('enemy2',enemy2HQ,enemies,.5);
+ }else{
+   playerHQ.group.visible=true;allyHQ.group.visible=true;enemyHQ.group.visible=true;enemy2HQ.group.visible=true;
+   playerHQ.group.position.set(-43,0,-18);allyHQ.group.position.set(-43,0,18);enemyHQ.group.position.set(43,0,-18);enemy2HQ.group.position.set(43,0,18);
+   camTarget.copy(playerHQ.group.position);
+   spawnArmyForFaction('player',playerHQ,units,.72);
+   spawnArmyForFaction('ally',allyHQ,alliedUnits,.72);
+   spawnArmyForFaction('enemy',enemyHQ,enemies,.48);
+   spawnArmyForFaction('enemy2',enemy2HQ,enemies,.48);
+ }
+ playerTeam=teamForSide('player'); resourcesAmt=260; commanderPoints=35; morale=55; kills=0; gameOver=false; paused=false; allyTimer=2.0; enemyTimer=2.4; enemy2Timer=4.1;
+}
+
+
+function worldFromEvent(e){
+ const r=renderer.domElement.getBoundingClientRect();
+ mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+ const ray=new T.Raycaster();ray.setFromCamera(mouse,camera);const plane=new T.Plane(new T.Vector3(0,1,0),0);const p=new T.Vector3();ray.ray.intersectPlane(plane,p);return p;
+}
+function setSelected(u,on){u.selected=on;if(on)selected.add(u);else selected.delete(u);}
+function selectAt(p,add=false){if(!add)selected.forEach(u=>setSelected(u,false));let best=null,bd=999;for(const u of units){const d=u.group.position.distanceTo(p);if(d<bd&&d<2.2){best=u;bd=d}}if(best){setSelected(best,true);playSelect();showMessage('自軍ユニットを選択中',900)}else{showMessage('操作できるのは緑色の兵士・車両です',1200)}updateSelectionInfo()}
+function selectBox(a,b,add=false){if(!add)selected.forEach(u=>setSelected(u,false));const minx=Math.min(a.x,b.x),maxx=Math.max(a.x,b.x),minz=Math.min(a.z,b.z),maxz=Math.max(a.z,b.z);for(const u of units){const p=u.group.position;if(p.x>=minx&&p.x<=maxx&&p.z>=minz&&p.z<=maxz)setSelected(u,true)}updateSelectionInfo()}
+function updateSelectionInfo(){const el=$('selectionInfo');if(!selected.size){el.style.display='none';return}el.style.display='block';let hp=0;const names={rifle:'歩兵',tank:'戦車',mg:'機関銃',rocket:'ロケラン',mortar:'迫撃砲',armored:'装甲車',at:'対戦車砲'};const counts={};selected.forEach(u=>{hp+=u.hp;counts[u.type]=(counts[u.type]||0)+1});const detail=Object.entries(counts).map(([k,v])=>names[k]+'×'+v).join(' / ');el.innerHTML='<b>自軍・選択中</b><br>'+detail+'<br>合計HP '+Math.ceil(hp)+'<br><small style="opacity:.72">右クリックで移動・攻撃</small>';}
+function issueOrder(p){if(!selected.size)return;const arr=[...selected];const cols=Math.ceil(Math.sqrt(arr.length));arr.forEach((u,i)=>{const ox=((i%cols)-(cols-1)/2)*2.2,oz=(Math.floor(i/cols)-(Math.ceil(arr.length/cols)-1)/2)*2.2;u.order={x:p.x+ox,z:p.z+oz};u.target=null;u.attackOrder=false;});playMove();showMessage('移動指示を出しました');}
+function enemyAt(p){let best=null,bd=4;for(const e of allCombatants()){if(e.team===playerTeam||e.dead)continue;const d=e.group.position.distanceTo(p);if(d<bd){bd=d;best=e}}for(const h of activeHQs()){if(h.team===playerTeam||h.dead)continue;const d=h.group.position.distanceTo(p);if(d<6&&d<bd){bd=d;best=h}}return best;}
+function showMessage(s,ms=1500){const el=$('message');el.textContent=s;el.style.display='block';clearTimeout(showMessage.t);showMessage.t=setTimeout(()=>el.style.display='none',ms)}
+
+renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+function endDragSelection(){
+ if(!drag && !dragStart && !dragBox)return;
+ drag=false;
+ if(dragBox){scene.remove(dragBox);dragBox=null;}
+ dragStart=null;
+}
+renderer.domElement.addEventListener('pointerdown',e=>{
+ if(!running||paused)return;
+ if(e.button===0){
+   drag=true;dragStart=worldFromEvent(e);
+   if(dragBox){scene.remove(dragBox);dragBox=null;}
+   dragBox=new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(1,1)),new T.LineBasicMaterial({color:0xe4f0bb,transparent:true,opacity:.8}));
+   dragBox.rotation.x=-Math.PI/2;scene.add(dragBox);
+   try{renderer.domElement.setPointerCapture?.(e.pointerId);}catch(_){}
+ }
+});
+renderer.domElement.addEventListener('pointermove',e=>{if(!drag||!dragStart||!dragBox)return;const p=worldFromEvent(e);const cx=(dragStart.x+p.x)/2,cz=(dragStart.z+p.z)/2,w=Math.max(1,Math.abs(p.x-dragStart.x)),h=Math.max(1,Math.abs(p.z-dragStart.z));dragBox.scale.set(w,h,1);dragBox.position.set(cx,.08,cz)});
+renderer.domElement.addEventListener('pointerup',e=>{
+ if(!running||paused){endDragSelection();return;} const p=worldFromEvent(e);
+ if(e.button===0){
+   const start=dragStart;
+   const wasDrag=drag;
+   endDragSelection();
+   try{renderer.domElement.releasePointerCapture?.(e.pointerId);}catch(_){}
+   if(artilleryPending){if(callArtillery(p))return;}
+   if(start&&wasDrag){const dist=start.distanceTo(p);if(dist<1.8)selectAt(p,e.shiftKey);else selectBox(start,p,e.shiftKey)}
+ }
+ if(e.button===2){if(artilleryPending){artilleryPending=false;showMessage('砲撃支援をキャンセル');return;}const t=enemyAt(p);if(t){selected.forEach(u=>{u.target=t;u.order=null;u.attackOrder=true});playAlert();showMessage(t.type==='hq'?'敵HQへ攻撃指示':'攻撃目標を指定');}else issueOrder(p)}
+});
+renderer.domElement.addEventListener('pointercancel',endDragSelection);
+document.addEventListener('pointerup',endDragSelection);
+document.addEventListener('pointercancel',endDragSelection);
+window.addEventListener('blur',endDragSelection);
+renderer.domElement.addEventListener('wheel',e=>{camZoom=T.MathUtils.clamp(camZoom+e.deltaY*.001,0.58,1.65);});
+
+function moveUnit(u,dt){const pos=u.group.position;if(u.side==='player'&&u.attackOrder&&u.target&&!u.target.dead){const d=pos.distanceTo(u.target.group.position);if(d>u.range*.92)u.order={x:u.target.group.position.x,z:u.target.group.position.z};}
+ if(u.order){const dest=new T.Vector3(u.order.x,0,u.order.z);const dx=dest.x-pos.x,dz=dest.z-pos.z,dist=Math.hypot(dx,dz);if(dist<.45){u.order=null}else{pos.x+=(dx/dist)*u.speed*dt;pos.z+=(dz/dist)*u.speed*dt;u.group.rotation.y=Math.atan2(dx,dz);}}
+ pos.x=T.MathUtils.clamp(pos.x,-72,72);pos.z=T.MathUtils.clamp(pos.z,-48,48);
+}
+function nearestTarget(u,list,range){let best=null,bd=range;for(const e of list){if(!e||e.dead||!isHostile(u,e))continue;const d=u.group.position.distanceTo(e.group.position);if(d<bd){bd=d;best=e}}return best}
+function fire(u,t){
+ if(u.cd>0||!t||t.dead)return;u.cd=u.cool;
+ const a=u.group.position.clone().add(new T.Vector3(0,1,0)),b=t.group.position.clone().add(new T.Vector3(0,1,0));const dir=b.sub(a).normalize();
+ let geom,material,spd=46,life=1.6;
+ if(u.type==='rocket'){geom=new T.CylinderGeometry(.10,.12,1.35,6);material=new T.MeshBasicMaterial({color:0xe5a451});spd=38;life=2.4;}
+ else if(u.type==='mortar'){geom=new T.SphereGeometry(.16,7,6);material=new T.MeshBasicMaterial({color:0xc6c1a3});spd=28;life=2.8;}
+ else if(u.type==='armored'){geom=new T.CylinderGeometry(.10,.10,1.25,6);material=new T.MeshBasicMaterial({color:0xffb35d});spd=58;life=1.45;}
+ else if(u.type==='at'){geom=new T.CylinderGeometry(.08,.08,1.4,6);material=new T.MeshBasicMaterial({color:0xffd16a});spd=54;life=2.0;}
+ else {const tank=u.type==='tank';geom=new T.CylinderGeometry(tank?.09:.07,tank?.09:.07,tank?1.15:.9,6);material=new T.MeshBasicMaterial({color:tank?0xffb35d:0xf0d36a});spd=tank?54:46;}
+ const m=new T.Mesh(geom,material);m.position.copy(a.clone().addScaledVector(dir,.45));if(geom.type!=='SphereGeometry')m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),dir);scene.add(m);
+ projectiles.push({mesh:m,from:a,to:t,speed:spd,damage:u.damage,life,side:u.side,type:u.type,attacker:u});playShot(u.type,u.side);
+}
+function applyDamage(t,d,attacker=null){
+ if(!t||t.dead)return;
+ if(t.type==='hq'){
+   t.hp=Math.max(0,t.hp-d); playImpact('tank');
+   if(t.hp<=0){destroyHQVisual(t);checkVictoryState();}
+   return;
+ }
+ t.hp-=d;playImpact(t.type);
+ if(attacker&&isHostile(attacker,t)&&!t.dead){t.target=attacker;t.order=null;t.attackOrder=true;}
+ if(t.hp<=0){
+   t.dead=true; playExplosion(t.type==='tank');
+   const wasEnemy=isHostile(t,{team:playerTeam});
+   removeCombatant(t);
+   if(wasEnemy){kills++;resourcesAmt=Math.min(MAX_RESOURCES,resourcesAmt+5);if(killStreak<=0)killStreak=1;else killStreak++;streakTimer=5;const streakBonus=Math.min(12,2+Math.floor(killStreak/3));const cpGain=6+streakBonus;commanderPoints=Math.min(MAX_COMMANDER_POINTS,commanderPoints+cpGain);showMessage(`敵撃破 +5資材 / +${cpGain}司令点`);if(killStreak>=3)battlePulse(`連続撃破 ${killStreak}！司令点ボーナス`,1.15);}
+   checkVictoryState();
+ }
+}
+function checkVictoryState(){
+ if(playerHQ.dead){finish(false);return;}
+ const foes=activeHQs().filter(h=>h.team!==playerTeam&&!h.dead);
+ if(foes.length===0)finish(true);
+}
+
+function updateCombat(u,dt,hostiles){if(u.dead)return;u.cd=Math.max(0,u.cd-dt);let t=u.target;if(!t||t.dead||!isHostile(u,t)){u.target=null;t=null;}const visible=nearestTarget(u,hostiles,u.vision??12);if(!t&&visible){t=visible;u.target=t;u.order=null;u.attackOrder=true;}if(t){const d=u.group.position.distanceTo(t.group.position);if(d<=u.range*1.08){u.order=null;u.group.rotation.y=Math.atan2(t.group.position.x-u.group.position.x,t.group.position.z-u.group.position.z);fire(u,t);}else if(u.attackOrder||!u.order){u.order={x:t.group.position.x,z:t.group.position.z};}}}
+function enemyTargetScore(e,t){if(!t||t.dead||!isHostile(e,t))return 1e9;
+ const d=e.group.position.distanceTo(t.group.position);
+ let score=d;
+ if(t.type==='hq') score-=(e.type==='tank'?32:18);
+ if(t.type==='tank') score-=(e.type==='tank'?24:12);
+ score-=(1-t.hp/t.maxHp)*26;
+ const nearbyFocus=allCombatants().reduce((n,o)=>n+(o!==e&&!o.dead&&o.target===t?1:0),0);
+ if(nearbyFocus>=2 && t.type!=='hq') score-=10;
+ if(d<e.range*1.6) score-=8;
+ return score;
+}
+function chooseTargetFor(e){
+ let best=null,bs=1e9;
+ for(const u of allCombatants()){const sc=enemyTargetScore(e,u);if(sc<bs){bs=sc;best=u}}
+ for(const h of activeHQs()){if(isHostile(e,h)){const sc=enemyTargetScore(e,h);if(sc<bs){bs=sc;best=h}}}
+ return best;
+}
+function powerUpEnemy(e){
+ if(e._elite) return; e._elite=true;
+ const hpMult=e.type==='tank'||e.type==='armored'?1.52:(e.type==='mg'||e.type==='mortar'?1.38:1.31);
+ e.maxHp=Math.round(e.maxHp*hpMult); e.hp=e.maxHp;
+ e.damage=Math.round(e.damage*(e.type==='tank'||e.type==='armored'?1.34:(e.type==='rocket'||e.type==='at'||e.type==='mortar'?1.30:1.24)));
+ e.cool*=e.type==='tank'||e.type==='armored'?.79:(e.type==='rocket'||e.type==='mortar'||e.type==='at'?.82:.86);
+ e.range+=(e.type==='tank'||e.type==='armored')?2.4:((e.type==='rocket'||e.type==='at'||e.type==='mortar')?3.0:1.5);
+ e.speed*=e.type==='tank'||e.type==='armored'?1.10:1.08; e.aiThink=.08;
+}
+function produceForHQ(hq,side,arr,enemy=false){
+ if(!hq||hq.dead||!hq.group.visible)return;
+ const need=side==='ally'?70:65;
+ if(hq.resources<need)return;
+ hq.resources-=need;
+ const types=['rifle','rifle','mg','rocket','mortar','armored','at'];
+ const roll=types[Math.floor(Math.random()*types.length)];
+ const count=roll==='rifle'?6:(roll==='mg'?3:(roll==='rocket'||roll==='mortar'||roll==='at'?2:1));
+ for(let i=0;i<count;i++){let u=roll==='armored'?makeSpecial('armored',side):(roll==='rifle'||roll==='mg'?makeSoldier(side,roll):makeSpecial(roll,side));addUnit(u,hq.group.position.x+6+Math.random()*6,hq.group.position.z+(Math.random()-.5)*16,arr);if(side!=='ally')powerUpEnemy(u);}
+}
+function runFactionAI(roster,hq,dt,hostilesAll){
+ if(!hq||hq.dead)return;
+ hq.aiClock=(hq.aiClock||0)+dt;
+ if(hq.aiClock>0.26){
+   hq.aiClock=0;
+   for(const e of roster){if(e.dead)continue;e.aiThink-=.26;if(e.aiThink>0)continue;e.aiThink=.22+Math.random()*.24;
+     const t=e.target&& !e.target.dead && isHostile(e,e.target)?e.target:chooseTargetFor(e);
+     if(t){e.target=t; const tp=t.group.position;const dx=tp.x-e.group.position.x,dz=tp.z-e.group.position.z,d=Math.hypot(dx,dz)||1;let keep=(e.type==='tank'||e.type==='armored')?2.8:((e.type==='rocket'||e.type==='at'||e.type==='mortar')?5.8:4.0);let desiredX=tp.x-dx/d*keep,desiredZ=tp.z-dz/d*keep;
+       if(e.aiRole==='flanker'){const nx=-dz/d,nz=dx/d;desiredX+=nx*e.flankSide*6;desiredZ+=nz*e.flankSide*6;}
+       if(e.aiRole==='support'){desiredX=tp.x-dx/d*Math.max(keep,d*.62);desiredZ=tp.z-dz/d*Math.max(keep,d*.62);}
+       e.order={x:desiredX,z:desiredZ};e.attackOrder=true;
+     }
+   }
+ }
+ for(const e of roster){if(e.dead)continue;let pushX=0,pushZ=0;for(const o of roster){if(o===e||o.dead)continue;const dx=e.group.position.x-o.group.position.x,dz=e.group.position.z-o.group.position.z,d2=dx*dx+dz*dz;if(d2>0&&d2<16){const d=Math.sqrt(d2),k=(4-d)*.22;pushX+=dx/d*k;pushZ+=dz/d*k;}}if(pushX||pushZ){e.group.position.x+=pushX*dt*10;e.group.position.z+=pushZ*dt*10;}moveUnit(e,dt);updateCombat(e,dt,hostilesAll);}
+}
+function enemyAI(dt){
+ enemyTimer+=dt; enemy2Timer+=dt; allyTimer+=dt;
+ if(gameMode==='2v2'){
+   allyHQ.resources+=9*dt; if(allyTimer>6.2){allyTimer=0;produceForHQ(allyHQ,'ally',alliedUnits,false)}
+   enemyHQ.resources+=10*dt; enemy2HQ.resources+=10*dt; if(enemyTimer>4.1){enemyTimer=0;produceForHQ(enemyHQ,'enemy',enemies,true)} if(enemy2Timer>5.2){enemy2Timer=0;produceForHQ(enemy2HQ,'enemy2',enemies,true)}
+ }else if(gameMode==='1v1v1'){
+   enemyHQ.resources+=10*dt;enemy2HQ.resources+=10*dt;if(enemyTimer>4.0){enemyTimer=0;produceForHQ(enemyHQ,'enemy',enemies,true)}if(enemy2Timer>4.8){enemy2Timer=0;produceForHQ(enemy2HQ,'enemy2',enemies,true)}
+ }else{enemyHQ.resources+=10*dt;if(enemyTimer>3.8){enemyTimer=0;produceForHQ(enemyHQ,'enemy',enemies,true)} }
+ for(const h of activeHQs()){if(h.side==='ally'&&gameMode!=='2v2')continue;}
+ if(gameMode==='2v2') runFactionAI(alliedUnits,allyHQ,dt,allCombatants());
+ if(gameMode==='1v1v1'){runFactionAI(enemies.filter(e=>e.side==='enemy'),enemyHQ,dt,allCombatants());runFactionAI(enemies.filter(e=>e.side==='enemy2'),enemy2HQ,dt,allCombatants());}
+ else if(gameMode==='2v2'){runFactionAI(enemies.filter(e=>e.side==='enemy'),enemyHQ,dt,allCombatants());runFactionAI(enemies.filter(e=>e.side==='enemy2'),enemy2HQ,dt,allCombatants());}
+ else runFactionAI(enemies.filter(e=>e.side==='enemy'),enemyHQ,dt,allCombatants());
+}
+
+function updateWreckSmoke(dt){for(const hq of activeHQs()){if(hq._beacon&&!hq.dead){hq._beacon.material.opacity=.22+Math.sin(performance.now()*.003+hq.group.position.x)*.07;}if(!hq.dead||!hq._wreckSmoke)continue;hq._wreckSmoke.position.y=3.4+Math.sin(performance.now()*.001+hq.group.position.x)*.12;hq._wreckSmoke.scale.x=1+Math.sin(performance.now()*.0017+hq.group.position.z)*.08;hq._wreckSmoke.scale.z=1+Math.cos(performance.now()*.0015)*.08;}}
+function updateProjectiles(dt){for(let i=projectiles.length-1;i>=0;i--){const p=projectiles[i];p.life-=dt;if(p.life<=0){scene.remove(p.mesh);projectiles.splice(i,1);continue}const target=p.to;if(!target||target.dead){scene.remove(p.mesh);projectiles.splice(i,1);continue}const dst=target.group.position.clone().add(new T.Vector3(0,1,0));const d=p.mesh.position.distanceTo(dst);p.mesh.lookAt(dst);p.mesh.translateZ(p.speed*dt);if(d<2.1){makeBurst(dst);playImpact(p.type);applyDamage(target,p.damage);scene.remove(p.mesh);projectiles.splice(i,1)}}}
+function makeBurst(pos){const m=new T.Mesh(new T.SphereGeometry(.28,8,6),new T.MeshBasicMaterial({color:0xffdd9a,transparent:true,opacity:.85}));m.position.copy(pos);scene.add(m);effects.push({group:m,life:.25});}
+function updateEffects(dt){for(let i=effects.length-1;i>=0;i--){const e=effects[i];e.life-=dt;e.group.scale.multiplyScalar(1+dt*8);e.group.material.opacity=Math.max(0,e.life/.25);if(e.life<=0){scene.remove(e.group);effects.splice(i,1)}}}
+
+function commandTargetPoint(){return worldFromEvent({clientX:mousePos.x,clientY:mousePos.y});}
+function armArtillery(){if(commanderPoints<ARTILLERY_COST || artilleryCooldown>0 || !running || paused || gameOver){playAlert();return false;}artilleryPending=true;playCommand('artillery');battlePulse('砲撃地点をクリック',3);showMessage('砲撃支援：着弾地点をクリック',2200);return true;}
+function addShockwave(pos,damage,radius){
+ const dust=new T.Mesh(new T.SphereGeometry(.45,8,6),new T.MeshLambertMaterial({color:0x6f6650,transparent:true,opacity:.7}));dust.position.copy(pos);scene.add(dust);effects.push({group:dust,life:.38,scale:1});
+ const ring=new T.Mesh(new T.RingGeometry(.3,radius,28),new T.MeshBasicMaterial({color:0xd9c38a,transparent:true,opacity:.8,side:T.DoubleSide}));
+ ring.rotation.x=-Math.PI/2; ring.position.copy(pos); ring.position.y=.08; scene.add(ring); effects.push({group:ring,life:.42,scale:1});
+ for(const e of [...allCombatants()]){if(e.dead||e.team===playerTeam)continue;const d=e.group.position.distanceTo(pos);if(d<=radius) applyDamage(e,Math.max(8,damage*(1-d/radius)));}
+}
+function callArtillery(pos){
+ if(commanderPoints<ARTILLERY_COST || artilleryCooldown>0 || !running || paused || gameOver)return false;
+ artilleryPending=false; commanderPoints-=ARTILLERY_COST; artilleryCooldown=ARTILLERY_COOLDOWN;
+ showMessage('砲撃開始！',1800); battleStateTimer=2.1; battlePulse('砲兵隊から集中砲撃',2.1);
+ // 着弾地点を一瞬だけ見えるようにして、支援が確実に発動したことを示す
+ const marker=new T.Mesh(new T.RingGeometry(2.4,2.7,28),new T.MeshBasicMaterial({color:0xff8a3d,transparent:true,opacity:.8,side:T.DoubleSide}));
+ marker.rotation.x=-Math.PI/2; marker.position.copy(pos); marker.position.y=.08; scene.add(marker);
+ effects.push({group:marker,life:2.2});
+ // 連続8発。範囲内の敵ユニットと敵HQにダメージ
+ for(let i=0;i<ARTILLERY_SHELLS;i++){setTimeout(()=>{if(gameOver)return;
+   const p=pos.clone().add(new T.Vector3((Math.random()-.5)*8,0,(Math.random()-.5)*8));
+   addShockwave(p,ARTILLERY_DAMAGE,ARTILLERY_RADIUS);
+   for(const h of activeHQs()){if(h.team!==playerTeam&&!h.dead){const d=h.group.position.distanceTo(p);if(d<=ARTILLERY_RADIUS) applyDamage(h,ARTILLERY_DAMAGE*0.7);}}
+   makeBurst(p); playExplosion(i===7);
+ },i*150+Math.random()*70);}
+ return true;
+}
+function activateRally(){
+ if(commanderPoints<40 || rallyTimer>0 || !running || paused || gameOver){playAlert();return;}
+ commanderPoints-=40; rallyTimer=8; morale=Math.min(100,morale+28); playCommand('rally'); showMessage('総攻撃！全部隊の戦闘力上昇',1900); battlePulse('総攻撃命令・前線を押し上げろ',2.8);
+}
+function emergencyReinforce(){
+ if(playerHQ.dead){showMessage('自軍HQが破壊されているため増援を出せません');playAlert();return;}
+ if(resourcesAmt<120 || units.length>=MAX_FORCES || !running || paused || gameOver){playAlert();showMessage('増援を出せません');return;}
+ resourcesAmt-=120; playCommand('reinforce'); showMessage('緊急増援が到着！',1800); battlePulse('後方から増援部隊が到着',2.0);
+ const types=['rifle','mg','rocket','armored'];
+ const type=types[Math.floor(Math.random()*types.length)];
+ const count=type==='rifle'?12:(type==='mg'?5:(type==='rocket'?3:2));
+ for(let i=0;i<count && units.length<MAX_FORCES;i++){let u=type==='armored'?makeSpecial('armored','player'):(type==='rocket'?makeSpecial('rocket','player'):makeSoldier('player',type));addUnit(u,-47+Math.random()*5,-10+Math.random()*20,units);}
+}
+function battlePulse(text,seconds=1.5){battleStateTimer=seconds;$('battleState').textContent=text;$('battleState').style.display='block';}
+function updateMorale(dt){
+ streakTimer=Math.max(0,streakTimer-dt); if(streakTimer<=0)killStreak=0;
+ rallyTimer=Math.max(0,rallyTimer-dt); articulationCooldownFix();
+ artilleryCooldown=Math.max(0,artilleryCooldown-dt);
+ const near=allCombatants().some(e=>e.team!==playerTeam&&!e.dead&&e.group.position.distanceTo(playerHQ.group.position)<19);
+ if(near && battleStateTimer<=0){battlePulse('警戒！敵部隊がHQに接近',1.4);}
+ const loss=near?11:0; const gain=units.length>enemies.length?4:1;
+ morale=T.MathUtils.clamp(morale + (gain-loss)*dt,0,100);
+ if(near){warningPulse=Math.min(1,warningPulse+dt*5); if(Math.random()<dt*.09)playWarning();}else warningPulse=Math.max(0,warningPulse-dt*2.5);
+ $('warning').style.opacity=(warningPulse*.75).toFixed(2);
+ if(rallyTimer>0){for(const u of units){u._rally=true;u.speedBase??=u.speed;u.damageBase??=u.damage;u.coolBase??=u.cool;u.speed=u.speedBase*1.22;u.damage=u.damageBase*1.25;u.cool=u.coolBase*.72;}}else{for(const u of units){if(u._rally){u.speed=u.speedBase||u.speed;u.damage=u.damageBase||u.damage;u.cool=u.coolBase||u.cool;u._rally=false;}}}
+ $('moraleFill').style.width=morale.toFixed(0)+'%';
+ $('cmdStat').textContent=Math.floor(commanderPoints)+' / '+MAX_COMMANDER_POINTS;
+}
+function articulationCooldownFix(){}
+
+function buy(type){
+ if(gameOver)return;
+ if(playerHQ.dead){showMessage('自軍HQが破壊されているため生産できません');playAlert();return;}
+ const cfg={rifle:[40,8,'歩兵隊'],tank:[90,1,'戦車'],mg:[65,4,'機関銃班'],rocket:[110,2,'ロケラン班'],mortar:[100,3,'迫撃砲班'],armored:[120,1,'装甲車'],at:[95,2,'対戦車砲班']}[type];
+ if(!cfg)return;
+ if(units.length+cfg[1]>MAX_FORCES){showMessage('戦力上限800。部隊を整理してください');playAlert();return}
+ if(resourcesAmt<cfg[0]){showMessage('資材が足りません');return}
+ resourcesAmt-=cfg[0];playBuild();
+ if(type==='tank'||type==='armored'){addUnit(type==='tank'?makeTank('player'):makeSpecial('armored','player'),-44+Math.random()*6,3+Math.random()*18,units)}
+ else if(type==='rifle'||type==='mg'){for(let i=0;i<cfg[1];i++){const u=makeSoldier('player',type);addUnit(u,-44+Math.random()*8,2+Math.random()*20,units)}}
+ else {for(let i=0;i<cfg[1];i++){const u=makeSpecial(type,'player');addUnit(u,-44+Math.random()*8,2+Math.random()*20,units)}}
+ showMessage(cfg[2]+'を生産');
+}
+document.querySelectorAll('.buildBtn').forEach(b=>b.addEventListener('click',()=>buy(b.dataset.unit)));
+
+$('artilleryBtn').addEventListener('click',armArtillery);
+$('rallyBtn').addEventListener('click',activateRally);
+$('reinforceBtn').addEventListener('click',emergencyReinforce);
+
+function cameraUpdate(dt){const edge=26, speed=30;let dx=0,dz=0; if(keys.has('KeyA'))dx-=1;if(keys.has('KeyD'))dx+=1;if(keys.has('KeyW'))dz-=1;if(keys.has('KeyS'))dz+=1; const r=renderer.domElement.getBoundingClientRect();if(mousePos.x<r.left+edge)dx-=1;if(mousePos.x>r.right-edge)dx+=1;if(mousePos.y<r.top+edge)dz-=1;if(mousePos.y>r.bottom-edge)dz+=1;if(dx||dz){const l=Math.hypot(dx,dz);camTarget.x+=dx/l*speed*dt;camTarget.z+=dz/l*speed*dt}camTarget.x=T.MathUtils.clamp(camTarget.x,-56,48);camTarget.z=T.MathUtils.clamp(camTarget.z,-34,34);const s=camZoom;camera.left=-35*s;camera.right=35*s;camera.top=22*s;camera.bottom=-22*s;camera.position.x+=(camTarget.x-camera.position.x*.0-camera.position.x)*0.0;cameraShake=Math.max(0,cameraShake-dt*1.7);const sx=(Math.random()-.5)*cameraShake,sz=(Math.random()-.5)*cameraShake;camera.position.set(camTarget.x+sx,65*s+cameraShake*2,camTarget.z+46*s+sz);camera.lookAt(camTarget.x,0,camTarget.z);camera.updateProjectionMatrix();}
+const keys=new Set();const mousePos={x:innerWidth/2,y:innerHeight/2};window.addEventListener('keydown',e=>{keys.add(e.code);if(e.code==='Escape'){if(artilleryPending){artilleryPending=false;showMessage('砲撃支援をキャンセル');return;}paused=!paused;$('pause').style.display=paused?'flex':'none';return;}if(!running||paused||gameOver)return;if(e.code==='KeyQ'){armArtillery();}else if(e.code==='KeyE'){activateRally();}else if(e.code==='KeyR'){emergencyReinforce();}});window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('mousemove',e=>{mousePos.x=e.clientX;mousePos.y=e.clientY});
+
+function miniDraw(){const c=$('mini'),x=c.getContext('2d'),w=c.width=380,h=c.height=270;x.clearRect(0,0,w,h);x.fillStyle='#67705a';x.fillRect(0,0,w,h);x.fillStyle='#4c514b';x.fillRect(0,h/2-14,w,28);x.fillRect(w/2-16,0,32,h);
+ const col={player:'#9be36e',ally:'#59c7e8',enemy:'#ef776d',enemy2:'#bc72ea'};
+ for(const u of allCombatants()){x.fillStyle=col[u.side]||'#ddd';const px=(u.group.position.x+75)/150*w,pz=(u.group.position.z+50)/100*h;x.fillRect(px-3,pz-3,6,6)}
+ for(const hq of activeHQs()){x.fillStyle=col[hq.side]||'#ddd';const px=(hq.group.position.x+75)/150*w,pz=(hq.group.position.z+50)/100*h;x.fillRect(px-5,pz-5,10,10)}
+}
+function hud(){ $('unitsStat').textContent=units.length+' / '+MAX_FORCES;$('resStat').textContent=Math.floor(resourcesAmt);$('killStat').textContent=kills;$('hpStat').textContent=Math.ceil(playerHQ.hp);$('cmdStat').textContent=Math.floor(commanderPoints)+' / '+MAX_COMMANDER_POINTS;$('artilleryBtn').disabled=commanderPoints<ARTILLERY_COST||artilleryCooldown>0;$('rallyBtn').disabled=commanderPoints<40||rallyTimer>0;$('reinforceBtn').disabled=resourcesAmt<120||units.length>=MAX_FORCES;$('artilleryBtn').style.opacity=$('artilleryBtn').disabled?.45:1;$('rallyBtn').style.opacity=$('rallyBtn').disabled?.45:1;$('reinforceBtn').style.opacity=$('reinforceBtn').disabled?.45:1;}
+function finish(enemyDestroyed){gameOver=true;running=false;const box=document.createElement('div');box.style.cssText='position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65)';box.innerHTML='<div style="padding:36px 50px;border-radius:14px;background:#141814;text-align:center;border:1px solid #ffffff22"><h1 style="margin:0 0 10px">'+(enemyDestroyed?'作戦成功':'作戦失敗')+'</h1><p style="opacity:.75">撃破数: '+kills+'</p><button id="again" style="font-size:17px;padding:10px 24px;border-radius:7px;border:1px solid #999;background:#454d3e;color:white;cursor:pointer">再戦</button></div>';document.body.appendChild(box);box.querySelector('#again').onclick=()=>location.reload();}
+
+document.querySelectorAll('.modeBtn').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.modeBtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');gameMode=b.dataset.mode;const hints={
+ '1v1':'1 vs 1：自軍HQ vs 敵HQ',
+ '1v1v1':'1 vs 1 vs 1：3つの拠点が正三角形に配置される三つ巴',
+ '2v2':'2 vs 2 チーム戦：自軍＋味方AI vs 敵2勢力'};$('modeHint').textContent=hints[gameMode];}));
+$('startBtn').onclick=async()=>{$('start').style.display='none';setupMode();running=true;last=performance.now();await startAudio();playAlert();showMessage(gameMode==='2v2'?'作戦開始。味方AIと連携して敵HQを撃破せよ':(gameMode==='1v1v1'?'作戦開始。三つ巴の戦場だ':'作戦開始。敵HQを撃破せよ'),2200)};
+function loop(now){requestAnimationFrame(loop);let dt=Math.min(.05,(now-last)/1000);last=now;if(running&&!paused&&!gameOver){resourcesAmt=Math.min(MAX_RESOURCES,resourcesAmt+RESOURCE_REGEN*dt);audioAmbientUpdate(dt);cameraUpdate(dt);for(const u of units){moveUnit(u,dt);updateCombat(u,dt,allCombatants().concat(activeHQs()));}enemyAI(dt);updateWreckSmoke(dt);updateProjectiles(dt);updateEffects(dt);updateMorale(dt);if(battleStateTimer>0){battleStateTimer-=dt;if(battleStateTimer<=0)$('battleState').style.display='none';}hud();miniDraw();for(const u of units){if(u.selected){if(!u._ring){const ring=new T.Mesh(new T.RingGeometry(.72, .9, 18),new T.MeshBasicMaterial({color:0xe4f0bb,side:T.DoubleSide,transparent:true,opacity:.9}));ring.rotation.x=-Math.PI/2;ring.position.y=.06;u.group.add(ring);u._ring=ring}}else{if(u._ring){u.group.remove(u._ring);u._ring=null}}}}renderer.render(scene,camera)}
+requestAnimationFrame(loop);
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);});
+})();
+</script>
+</body>
+</html>
